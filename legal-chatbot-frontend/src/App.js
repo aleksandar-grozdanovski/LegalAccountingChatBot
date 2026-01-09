@@ -150,6 +150,8 @@ function App() {
           <li>Value Added Tax regulations</li>
           <li>Corporate law requirements</li>
           <li>Business registration procedures</li>
+          <li>Employment law guidelines</li>
+          <li>Financial reporting standards</li>
         </ul>
       </div>
     </div>
