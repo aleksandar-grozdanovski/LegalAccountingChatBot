@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  api:
+    image: ghcr.io/aleksandar-grozdanovski/legalchatbot-api:latest
+    container_name: legalchatbot-api
+    restart: unless-stopped
+    environment:
+      - ASPNETCORE_URLS=http://+:8080
+      - ASPNETCORE_ENVIRONMENT=Production
+    networks:
+      - legalchatbot
+    # No host port - accessed via frontend nginx proxy
+
+  frontend:
+    image: ghcr.io/aleksandar-grozdanovski/legalchatbot-frontend:latest
+    container_name: legalchatbot-frontend
+    restart: unless-stopped
+    ports:
+      - "8082:80"
+    depends_on:
+      - api
+    networks:
+      - legalchatbot
+
+networks:
+  legalchatbot:
+    driver: bridge

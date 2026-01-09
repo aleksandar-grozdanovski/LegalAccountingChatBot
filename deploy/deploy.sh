@@ -1,43 +1,57 @@
 #!/usr/bin/env bash
-# deploy.sh - Run on dellbox to deploy latest images from GHCR or via docker-compose
+# deploy.sh - Run on dellbox to deploy latest images from GHCR via docker-compose
 # Usage: ./deploy.sh [compose-dir]
+#
+# Prerequisites:
+#   - docker-compose.yml in the compose directory
+#   - Docker and docker-compose-plugin installed
+#   - GHCR images accessible (public or authenticated)
 
 set -euo pipefail
 
-REPO_OWNER="${REPO_OWNER:-aledx}" # replace or export REPO_OWNER env var
-IMAGE_NAME="legalchatbot"
+REPO_OWNER="${REPO_OWNER:-aleksandar-grozdanovski}"
 COMPOSE_DIR="${1:-/srv/docker/apps/legalchatbot}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-echo "Deploying LegalChatbot from GHCR..."
+echo "=== LegalChatbot Deployment ==="
+echo "Repo owner: $REPO_OWNER"
+echo "Compose dir: $COMPOSE_DIR"
 
-if [ -f "$COMPOSE_DIR/docker-compose.yml" ]; then
-  echo "Found docker-compose.yml in $COMPOSE_DIR. Pulling and restarting compose stack..."
-  cd "$COMPOSE_DIR"
-  docker compose pull || true
-  docker compose up -d --build --remove-orphans
-  echo "Docker compose deployment finished."
-else
-  echo "No docker-compose.yml found in $COMPOSE_DIR. Pulling single image and restarting containers."
-  docker pull ghcr.io/${REPO_OWNER}/${IMAGE_NAME}:latest
+# Ensure compose directory exists
+mkdir -p "$COMPOSE_DIR"
 
-  # stop existing container if running
-  if docker ps --format '{{.Names}}' | grep -q "^${IMAGE_NAME}$"; then
-    docker stop ${IMAGE_NAME} || true
-    docker rm ${IMAGE_NAME} || true
-  fi
-
-  # run container (adjust ports and env as needed)
-  docker run -d \
-    --name ${IMAGE_NAME} \
-    --restart unless-stopped \
-    -e ASPNETCORE_URLS="http://+:8080" \
-    -p 8080:8080 \
-    ghcr.io/${REPO_OWNER}/${IMAGE_NAME}:latest
-
-  echo "Single-container deployment finished."
+# Copy docker-compose.yml from script dir if not present in compose dir
+if [ ! -f "$COMPOSE_DIR/docker-compose.yml" ] && [ -f "$SCRIPT_DIR/docker-compose.yml" ]; then
+  echo "Copying docker-compose.yml to $COMPOSE_DIR..."
+  cp "$SCRIPT_DIR/docker-compose.yml" "$COMPOSE_DIR/docker-compose.yml"
 fi
 
-# Optional: reload Caddy if needed (assumes caddy managed configs)
-# sudo systemctl reload caddy || true
-
-echo "Deployment complete."
+if [ -f "$COMPOSE_DIR/docker-compose.yml" ]; then
+  echo "Deploying via docker-compose..."
+  cd "$COMPOSE_DIR"
+  
+  # Pull latest images
+  echo "Pulling latest images..."
+  docker compose pull
+  
+  # Stop old containers and start new ones
+  echo "Starting containers..."
+  docker compose up -d --remove-orphans
+  
+  # Show running containers
+  echo ""
+  echo "=== Running containers ==="
+  docker compose ps
+  
+  echo ""
+  echo "=== Deployment complete ==="
+  echo "Frontend: http://legalchat.home.arpa (port 8082)"
+  echo "API: http://legalbot.home.arpa (port 8081 - legacy single container)"
+  echo ""
+  echo "Health check:"
+  echo "  curl -X POST http://localhost:8082/api/chat -H 'Content-Type: application/json' -d '{\"message\":\"test\"}'"
+else
+  echo "ERROR: No docker-compose.yml found in $COMPOSE_DIR or $SCRIPT_DIR"
+  echo "Please ensure docker-compose.yml exists."
+  exit 1
+fi
