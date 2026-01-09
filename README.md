@@ -63,32 +63,81 @@ The application will be available at:
 
 ## Deployment (Homelab / dellbox)
 
-Recommended approach: CI builds images and pushes them to GitHub Container Registry (GHCR). On `dellbox`, use `deploy/deploy.sh` to pull the latest image and restart the service, or place a `docker-compose.yml` in `/srv/docker/apps/legalchatbot` and let `deploy.sh` use it.
+### Architecture
 
-Quick steps to deploy on `dellbox`:
+The application runs as a multi-container stack:
+- **Backend API** (`legalchatbot-api`) - .NET 9 REST API
+- **Frontend** (`legalchatbot-frontend`) - React SPA served by nginx
 
-1. Copy repo or pull scripts to `dellbox`:
+Both containers communicate via an internal Docker network. The frontend's nginx proxies `/api/*` requests to the backend.
+
+### CI/CD Pipeline
+
+1. **Push code** to GitHub `main` branch
+2. **GitHub Actions** builds and publishes images to GHCR:
+   - `ghcr.io/aleksandar-grozdanovski/legalchatbot-api:latest`
+   - `ghcr.io/aleksandar-grozdanovski/legalchatbot-frontend:latest`
+3. **Manual deploy** on `dellbox` pulls images and restarts containers
+
+### Deploy Steps
+
 ```bash
+# 1. Copy deploy scripts to dellbox (first time only)
+scp deploy/* acedxl@192.168.50.67:/srv/docker/apps/legalchatbot/deploy/
+
+# 2. SSH to dellbox and run deploy
 ssh acedxl@192.168.50.67
-mkdir -p /srv/docker/apps/legalchatbot
+cd /srv/docker/apps/legalchatbot/deploy
+./deploy.sh
+
+# 3. Verify deployment
+docker ps | grep legalchatbot
+curl -X POST http://localhost:8082/api/chat -H 'Content-Type: application/json' -d '{"message":"test"}'
+```
+
+### Access URLs
+
+- **Frontend**: http://legalchat.home.arpa
+- **API** (internal): Proxied via frontend at `/api/*`
+
+### Backup & Restore
+
+**Schedule daily backups:**
+```bash
+# Add to crontab (runs daily at 03:00)
+0 3 * * * /srv/docker/apps/legalchatbot/deploy/backup.sh /srv/backups/legalchatbot >> /srv/backups/legalchatbot/backup.log 2>&1
+```
+
+**Manual backup:**
+```bash
+/srv/docker/apps/legalchatbot/deploy/backup.sh /srv/backups/legalchatbot
+```
+
+**Restore from backup:**
+```bash
+# Stop containers
+cd /srv/docker/apps/legalchatbot && docker compose down
+
+# Extract backup
+cd /srv/backups/legalchatbot
+tar -xzf legalchatbot-backup-YYYY-MM-DD-HHMMSS.tar.gz -C /srv/docker/apps/legalchatbot
+
+# Restart
+cd /srv/docker/apps/legalchatbot && docker compose up -d
+```
+
+### Rollback to Previous Version
+
+```bash
+# Use specific image tag (SHA from GitHub Actions)
 cd /srv/docker/apps/legalchatbot
-# copy docker-compose.yml here (or create one) and copy deploy/*.sh scripts
-```
+docker compose pull  # pulls :latest by default
 
-2. Make deploy scripts executable and run:
-```bash
-chmod +x /srv/docker/apps/legalchatbot/deploy/deploy.sh
-chmod +x /srv/docker/apps/legalchatbot/deploy/backup.sh
-REPO_OWNER=aleksandar-grozdanovski /srv/docker/apps/legalchatbot/deploy/deploy.sh
-```
+# OR manually set image tag in docker-compose.yml:
+# image: ghcr.io/aleksandar-grozdanovski/legalchatbot-api:abc123sha
 
-3. Schedule daily backups (example cron):
-```bash
-# run daily at 03:00 and keep backups in /srv/backups/legalchatbot
-0 3 * * * /srv/docker/apps/legalchatbot/deploy/backup.sh /srv/backups/legalchatbot pgdata
+docker compose up -d
 ```
-
-Adjust `REPO_OWNER` and other settings in `deploy/deploy.sh` as needed.
 
 ## Contributing
 
