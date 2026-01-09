@@ -77,23 +77,42 @@ Both containers communicate via an internal Docker network. The frontend's nginx
 2. **GitHub Actions** builds and publishes images to GHCR:
    - `ghcr.io/aleksandar-grozdanovski/legalchatbot-api:latest`
    - `ghcr.io/aleksandar-grozdanovski/legalchatbot-frontend:latest`
-3. **Manual deploy** on `dellbox` pulls images and restarts containers
+3. **Watchtower** (on dellbox) auto-detects new images and deploys within 5 minutes
+
+**Result**: Fully automated — push code and wait ~5-10 minutes for deployment!
 
 ### Deploy Steps
 
+**First-time setup:**
+
 ```bash
-# 1. Copy deploy scripts to dellbox (first time only)
+# 1. Copy deploy scripts to dellbox
 scp deploy/* acedxl@192.168.50.67:/srv/docker/apps/legalchatbot/deploy/
 
-# 2. SSH to dellbox and run deploy
+# 2. SSH to dellbox and deploy
 ssh acedxl@192.168.50.67
 cd /srv/docker/apps/legalchatbot/deploy
 ./deploy.sh
 
-# 3. Verify deployment
+# 3. Set up Watchtower for auto-deploy
+docker run -d \
+  --name watchtower \
+  --restart unless-stopped \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -e WATCHTOWER_POLL_INTERVAL=300 \
+  -e WATCHTOWER_CLEANUP=true \
+  -e WATCHTOWER_INCLUDE_RESTARTING=true \
+  containrrr/watchtower \
+  legalchatbot-api legalchatbot-frontend
+
+# 4. Verify deployment
 docker ps | grep legalchatbot
 curl -X POST http://localhost:8082/api/chat -H 'Content-Type: application/json' -d '{"message":"test"}'
 ```
+
+**Subsequent deploys:**
+
+Just push to GitHub — Watchtower handles the rest automatically!
 
 ### Access URLs
 
