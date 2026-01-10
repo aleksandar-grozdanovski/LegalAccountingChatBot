@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  api:
+    image: ghcr.io/aleksandar-grozdanovski/legalchatbot-api:test
+    container_name: legalchatbot-test-api
+    restart: unless-stopped
+    expose:
+      - "8080"
+    environment:
+      - ASPNETCORE_URLS=http://+:8080
+      - ASPNETCORE_ENVIRONMENT=Development
+    networks:
+      - legalchatbot-test
+
+  frontend:
+    image: ghcr.io/aleksandar-grozdanovski/legalchatbot-frontend:test
+    container_name: legalchatbot-test-frontend
+    restart: unless-stopped
+    ports:
+      - "8083:80"
+    depends_on:
+      - api
+    networks:
+      - legalchatbot-test
+
+networks:
+  legalchatbot-test:
+    driver: bridge
