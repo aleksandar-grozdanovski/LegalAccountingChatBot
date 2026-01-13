@@ -3,6 +3,7 @@ using LegalChatbot.API.Services;
 using LegalChatbot.API.Services.LLM;
 using Microsoft.OpenApi.Models;
 using OpenAI.Extensions;
+using Prometheus;
 
 var builder = WebApplication.CreateBuilder(args);
 
