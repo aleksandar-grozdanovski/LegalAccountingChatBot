@@ -85,6 +85,10 @@ if (!app.Environment.IsDevelopment())
 
 app.UseAuthorization();
 
+// Enable Prometheus metrics
+app.UseHttpMetrics(); // Tracks HTTP request metrics
+app.MapMetrics();     // Exposes /metrics endpoint
+
 app.MapControllers();
 
 app.Run();
